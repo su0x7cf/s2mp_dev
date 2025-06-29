@@ -1,10 +1,8 @@
-import { Box, Typography, Avatar, Grid, Paper, Card, CardContent } from "@mui/material";
+import { Box, Typography, Avatar, Grid, Paper, Card, CardContent, Button, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, CircularProgress } from "@mui/material";
 import { useSelector } from "react-redux";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import FullContentViewer from "./fullContentViewer";
-import { IconButton } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
 
 export default function ProfileComponent() {
     const user = useSelector((state) => state.userState.user);
@@ -14,6 +12,8 @@ export default function ProfileComponent() {
     const [following, setFollowing] = useState(0);
     const [fullContentViewer, setFullContentViewer] = useState(false);
     const [currentPost, setCurrentPost] = useState(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [confirmOpen, setConfirmOpen] = useState(false);
     useEffect(() => {
         if (user && user._id) {
             axios.get(`/api/v1/posts/user/${user._id}/full`)
@@ -49,20 +49,6 @@ export default function ProfileComponent() {
                             <Grid item xs={6} key={post._id} display="flex" justifyContent="center" alignItems="center">
                                 <Paper sx={{ p: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: 200, cursor: "pointer", position: "relative" }}
                                     onClick={() => { setCurrentPost(post); setFullContentViewer(true); }}>
-                                    <IconButton size="small" sx={{ position: "absolute", top: 4, right: 4, zIndex: 2 }}
-                                        onClick={async (e) => {
-                                            e.stopPropagation();
-                                            if (window.confirm("Are you sure you want to delete this post?")) {
-                                                try {
-                                                    await axios.delete(`/api/v1/posts/${post._id}`);
-                                                    setPosts(posts.filter(p => p._id !== post._id));
-                                                } catch (err) {
-                                                    alert("Failed to delete post");
-                                                }
-                                            }
-                                        }}>
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
                                     {post.type === "image" ? (
                                         <img src={post.downloadUrl || `/uploads/${post.src}`} alt={post.caption} style={{ width: "100%", maxHeight: 200, objectFit: "cover" }} />
                                     ) : (
@@ -78,8 +64,48 @@ export default function ProfileComponent() {
                 </CardContent>
             </Card>
             {fullContentViewer && (
-                <FullContentViewer post={{ ...currentPost, src: currentPost?.downloadUrl || `/uploads/${currentPost?.src}` }} onClose={() => setFullContentViewer(false)} />
+                <FullContentViewer
+                    post={{ ...currentPost, src: currentPost?.downloadUrl || `/uploads/${currentPost?.src}` }}
+                    onClose={() => setFullContentViewer(false)}
+                    onDelete={() => setConfirmOpen(true)}
+                    loading={deleteLoading}
+                />
             )}
+            {/* Delete confirmation dialog */}
+            <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+                <DialogTitle>Delete Post?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to delete this post? This action cannot be undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setConfirmOpen(false)} disabled={deleteLoading}>Cancel</Button>
+                    <Button onClick={async () => {
+                        setDeleteLoading(true);
+                        // Try delete by _id, then by src if needed
+                        let deleted = false;
+                        try {
+                            await axios.delete(`/api/v1/posts/${currentPost._id}`);
+                            deleted = true;
+                        } catch { }
+                        if (!deleted) {
+                            try {
+                                await axios.delete(`/api/v1/posts/by-src/${currentPost.src}`);
+                                deleted = true;
+                            } catch { }
+                        }
+                        if (deleted) {
+                            setPosts(posts.filter(p => p._id !== currentPost._id && p.src !== currentPost.src));
+                            setFullContentViewer(false);
+                            setConfirmOpen(false);
+                        }
+                        setDeleteLoading(false);
+                    }} color="error" disabled={deleteLoading}>
+                        {deleteLoading ? <CircularProgress size={20} /> : "Delete"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

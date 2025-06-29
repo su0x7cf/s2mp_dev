@@ -1,5 +1,11 @@
 const mongoose = require("mongoose");
 
+const commentSubSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "Users", required: true },
+    comment: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+}, { _id: true });
+
 const postSchema = new mongoose.Schema(
     {
         userId: { type: mongoose.Schema.Types.ObjectId, ref: "Users", required: true },
@@ -7,7 +13,7 @@ const postSchema = new mongoose.Schema(
         src: { type: String, required: true },
         caption: { type: String },
         likes: { type: [mongoose.Schema.Types.ObjectId], ref: "Users", default: [] },
-        comments: { type: [mongoose.Schema.Types.ObjectId], ref: "Comments", default: [] },
+        comments: { type: [commentSubSchema], default: [] },
     },
     {
         timestamps: true
