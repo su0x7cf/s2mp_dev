@@ -1,18 +1,32 @@
 import { Box, Card, CardContent, TextField, Typography, Button, Divider } from "@mui/material";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import { MuiOtpInput } from "mui-one-time-password-input";
 import cookies from "js-cookie";
 //redux components
 import { useDispatch, useSelector } from "react-redux";
-import { setUser } from "../../redux/reducer/userStateSlice";
+import { setUser, setIsLoggedIn } from "../../redux/reducer/userStateSlice";
+import { useRouter } from "next/router";
 
 export default function SignInComponent() {
     const userState = useSelector((state) => state.userState.user);
     const dispatch = useDispatch();
-    const handleUserState = (state) => {
-        dispatch(setUser(state));
+    const router = useRouter();
+    const [checkingAuth, setCheckingAuth] = useState(true);
+    useEffect(() => {
+        const token = cookies.get("token");
+        if (userState || token) {
+            router.replace("/main");
+        } else {
+            setCheckingAuth(false);
+        }
+    }, [userState, router]);
+
+    const handleUserState = (user, token) => {
+        dispatch(setUser(user));
+        dispatch(setIsLoggedIn(true));
+        cookies.set("token", token);
     }
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -33,8 +47,7 @@ export default function SignInComponent() {
             setTwoFactorEnabled(true);
         }
         else {
-            handleUserState(response.data.user);
-            cookies.set("token", response.data.token);
+            handleUserState(response.data.user, response.data.token);
             window.location.href = "/main";
         }
     }
@@ -53,10 +66,15 @@ export default function SignInComponent() {
     }
     const handleVerify = async function () {
         const response = await axios.post("/api/v1/auth/2fa/verify", { email, twoFactorCode });
-        console.log("Response: ", response.data);
-        handleUserState(response.data.user);
-        cookies.set("token", response.data.token);
+        handleUserState(response.data.user, response.data.token);
         window.location.href = "/main";
+    }
+    if (checkingAuth) {
+        return (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh" }}>
+                <Typography variant="h6">Checking authentication...</Typography>
+            </Box>
+        );
     }
     return (
         <>

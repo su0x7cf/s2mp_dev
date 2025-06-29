@@ -33,4 +33,4 @@ app.listen(process.env.PORT, () => {
 // require("./models/TwoFactorCode");
 
 // // import routes
-// require("./routes/authRoutes")(app);
+require("./routes/objectRoutes")(app);

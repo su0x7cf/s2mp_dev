@@ -8,9 +8,7 @@ const userStateSlice = createSlice({
     },
     reducers: {
         setUser: (state, action) => {
-            // return action.payload;
-            // state.user = action.payload;
-            Object.assign(state.user, action.payload);
+            state.user = action.payload;
         },
         setIsLoggedIn: (state, action) => {
             state.isLoggedIn = action.payload;

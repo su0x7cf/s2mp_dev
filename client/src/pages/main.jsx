@@ -20,12 +20,38 @@ import PersonIcon from "@mui/icons-material/Person";
 //redux components
 import { useSelector, useDispatch } from "react-redux";
 import { setMainState } from "../redux/reducer/mainStateSlice";
+import { setUser, setIsLoggedIn } from "../redux/reducer/userStateSlice";
 //react components
-
+import { useEffect } from "react";
+import { useRouter } from "next/router";
+import cookies from "js-cookie";
+import axios from "axios";
 
 export default function MainPage() {
   const mainState = useSelector((state) => state.mainState.page);
+  const user = useSelector((state) => state.userState.user);
+  const isLoggedIn = useSelector((state) => state.userState.isLoggedIn);
   const dispatch = useDispatch();
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = cookies.get("token");
+    // If Redux state is missing but token exists, fetch user info
+    if (!user && token) {
+      axios.post("/api/v1/auth/me", {}, { headers: { Authorization: `Bearer ${token}` } })
+        .then(res => {
+          dispatch(setUser(res.data.user));
+          dispatch(setIsLoggedIn(true));
+        })
+        .catch(() => {
+          cookies.remove("token");
+          router.replace("/auth-signin");
+        });
+    } else if (!user || !isLoggedIn || !token) {
+      router.replace("/auth-signin");
+    }
+  }, [user, isLoggedIn, router, dispatch]);
+
   const handleMainState = (state) => {
     dispatch(setMainState(state));
   }
