@@ -14,6 +14,13 @@ export default function SignInComponent() {
     const dispatch = useDispatch();
     const router = useRouter();
     const [checkingAuth, setCheckingAuth] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+    const [twoFactorCode, setTwoFactorCode] = useState("");
+
     useEffect(() => {
         const token = cookies.get("token");
         if (userState || token) {
@@ -28,10 +35,6 @@ export default function SignInComponent() {
         dispatch(setIsLoggedIn(true));
         cookies.set("token", token);
     }
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-    const [twoFactorCode, setTwoFactorCode] = useState("");
 
     //logic for form data
     const emailChangeHandler = function (event) {
@@ -41,14 +44,24 @@ export default function SignInComponent() {
         setPassword(event.target.value);
     }
     const handleSignIn = async function () {
-        const response = await axios.post("/api/v1/auth/login", { email, password });
-        //check if two factor authentication is enabled
-        if (response.data.user.twoFactorEnabled) {
-            setTwoFactorEnabled(true);
-        }
-        else {
-            handleUserState(response.data.user, response.data.token);
-            window.location.href = "/main";
+        setLoading(true);
+        setError("");
+        try {
+            const response = await axios.post("/api/v1/auth/login", { email, password });
+            if (response.data.user.twoFactorEnabled) {
+                setTwoFactorEnabled(true);
+            } else {
+                handleUserState(response.data.user, response.data.token);
+                window.location.href = "/main";
+            }
+        } catch (err) {
+            if (err.response && err.response.data && err.response.data.message) {
+                setError(err.response.data.message);
+            } else {
+                setError("An error occurred. Please try again.");
+            }
+        } finally {
+            setLoading(false);
         }
     }
 
@@ -87,7 +100,10 @@ export default function SignInComponent() {
                             <Box sx={{ display: "flex", flexDirection: "column", width: "100%", justifyContent: "center", alignItems: "center", minWidth: "100%" }}>
                                 <TextField label="Email" type="email" onChange={emailChangeHandler} fullWidth required sx={{ mb: 2 }} />
                                 <TextField label="Password" type="password" onChange={passwordChangeHandler} fullWidth required sx={{ mb: 2 }} />
-                                <Button type="submit" variant="outlined" fullWidth onClick={handleSignIn} sx={{ borderColor: "hsl(0, 0.00%, 70%)", color: "hsl(0, 0.00%, 20%)", mb: 2, p: 1, }}>Sign In</Button>
+                                <Button type="submit" variant="outlined" fullWidth onClick={handleSignIn} sx={{ borderColor: "hsl(0, 0.00%, 70%)", color: "hsl(0, 0.00%, 20%)", mb: 2, p: 1, }} disabled={loading}>
+                                    {loading ? "Signing In..." : "Sign In"}
+                                </Button>
+                                {error && <Typography color="error" sx={{ mt: 1 }}>{error}</Typography>}
                             </Box>
                             <Divider orientation="horizontal" flexItem sx={{ mb: 2, width: "100%" }}>or continue with</Divider>
                             <Box fullWidth sx={{ display: "flex", flexDirection: "column", width: "100%", justifyContent: "center", alignItems: "center" }}>

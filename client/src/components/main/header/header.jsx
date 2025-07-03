@@ -36,11 +36,11 @@ export default function HeaderComponent() {
       <Typography variant="h4">S2MP</Typography>
       <Box sx={{ display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "center" }}>
         <IconButton onClick={handleMenu} sx={{ display: "flex", direction: "row", alignItems: "center", justifyContent: "center", gap: 1 }}>
-          <Avatar>
-            <PersonIcon />
+          <Avatar src={user && user.avatar ? `/download/${user.avatar}` : undefined}>
+            {(!user?.avatar && user?.username?.[0]) ? user.username[0].toUpperCase() : <PersonIcon />}
           </Avatar>
           <Typography variant="body">
-            {user ? user.name : "Name"}
+            {user ? user.username : "Username"}
           </Typography>
           <ArrowDropDownIcon />
         </IconButton>

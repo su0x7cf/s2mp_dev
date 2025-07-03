@@ -9,12 +9,12 @@ import cookies from "js-cookie";
 export default function SignUpComponent() {
     const userState = useSelector((state) => state.userState.user);
     const router = useRouter();
-    const [name, setName] = useState("");
+    const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [checkingAuth, setCheckingAuth] = useState(true);
-    const nameChangeHandler = function (event) {
-        setName(event.target.value);
+    const usernameChangeHandler = function (event) {
+        setUsername(event.target.value);
     }
     const emailChangeHandler = function (event) {
         setEmail(event.target.value);
@@ -23,8 +23,7 @@ export default function SignUpComponent() {
         setPassword(event.target.value);
     }
     const handleSubmit = async function () {
-        const response = await axios.post("/api/v1/auth/register", { name, email, password });
-        // console.log(response.data);
+        const response = await axios.post("/api/v1/auth/register", { username, email, password });
         window.location.href = "/auth-signin";
     }
     useEffect(() => {
@@ -49,7 +48,7 @@ export default function SignUpComponent() {
                     <Typography variant="h5" sx={{ mb: 1, alignSelf: "flex-start" }}>Hi, create an account</Typography>
                     <Typography variant="h6" sx={{ mb: 2, alignSelf: "flex-start" }}>Sign up for an S2MP account</Typography>
                     <Box sx={{ display: "flex", flexDirection: "column", width: "100%", justifyContent: "center", alignItems: "center", minWidth: "100%" }}>
-                        <TextField label="Name" type="Name" onChange={nameChangeHandler} fullWidth required sx={{ mb: 2 }} />
+                        <TextField label="Username" type="text" onChange={usernameChangeHandler} fullWidth required sx={{ mb: 2 }} />
                         <TextField label="Email" type="email" onChange={emailChangeHandler} fullWidth required sx={{ mb: 2 }} />
                         <TextField label="Password" type="password" onChange={passwordChangeHandler} fullWidth required sx={{ mb: 2 }} />
                         <Button type="submit" variant="outlined" onClick={handleSubmit} fullWidth sx={{ borderColor: "hsl(0, 0.00%, 70%)", color: "hsl(0, 0.00%, 20%)", mb: 2, p: 1, }}>Sign Up</Button>

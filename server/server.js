@@ -10,26 +10,28 @@ app.use(express.urlencoded({ extended: true }));
 
 app.listen(process.env.PORT, () => {
   try {
-// console.log(`Server is running on port ${process.env.PORT}`);
+    // console.log(`Server is running on port ${process.env.PORT}`);
   } catch (error) {
-// console.log(`Error starting server`, error);
+    // console.log(`Error starting server`, error);
   }
 });
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {})
-.then(() => {
-// console.log("Connected to MongoDB");
-})
-.catch((error) => {
-// console.log("Error connecting to MongoDB", error);
-});
+  .then(() => {
+    // console.log("Connected to MongoDB");
+  })
+  .catch((error) => {
+    // console.log("Error connecting to MongoDB", error);
+  });
 
 // import models
 require("./models/User");
 require("./models/TwoFactorCode");
 require("./models/Posts");
+require("./models/Message");
 // import routes
 require("./routes/authRoutes")(app);
 require("./routes/postRoutes")(app);
+require("./routes/messageRoutes")(app);
 

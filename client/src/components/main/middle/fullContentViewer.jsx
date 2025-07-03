@@ -16,15 +16,17 @@ export default function FullContentViewer({ post, onClose, onDelete, loading }) 
     const [commentLoading, setCommentLoading] = useState(false);
     const [commentText, setCommentText] = useState("");
     const [localPost, setLocalPost] = useState(post);
+    const [saveLoading, setSaveLoading] = useState(false);
+    const isLiked = user && localPost.likes && localPost.likes.includes(user._id);
+    const isSaved = user && localPost.savedBy && localPost.savedBy.includes(user._id);
 
     // Like/unlike logic
-    const isLiked = user && localPost.likes && localPost.likes.includes(user._id);
     const handleLike = async () => {
         if (!user) return;
         setLikeLoading(true);
         try {
             const res = await axios.post(`/api/v1/posts/${localPost.src}/${isLiked ? "unlike" : "like"}`, { userId: user._id });
-            setLocalPost(res.data.post);
+            setLocalPost(res.data.post); // Use full post object from backend
         } catch { }
         setLikeLoading(false);
     };
@@ -35,7 +37,7 @@ export default function FullContentViewer({ post, onClose, onDelete, loading }) 
         setCommentLoading(true);
         try {
             const res = await axios.post(`/api/v1/posts/${localPost.src}/comment`, { userId: user._id, comment: commentText });
-            setLocalPost(res.data.post);
+            setLocalPost(res.data.post); // Use full post object from backend
             setCommentText("");
         } catch { }
         setCommentLoading(false);
@@ -47,9 +49,30 @@ export default function FullContentViewer({ post, onClose, onDelete, loading }) 
         setCommentLoading(true);
         try {
             const res = await axios.delete(`/api/v1/posts/${localPost.src}/comment/${commentId}`);
-            setLocalPost(res.data.post);
+            setLocalPost(res.data.post); // Use full post object from backend
         } catch { }
         setCommentLoading(false);
+    };
+
+    // Save/unsave logic
+    const handleSave = async () => {
+        if (!user) return;
+        setSaveLoading(true);
+        try {
+            const endpoint = localPost.savedBy && localPost.savedBy.includes(user._id)
+                ? `/api/v1/posts/${localPost.src}/unsave`
+                : `/api/v1/posts/${localPost.src}/save`;
+            const res = await axios.post(endpoint, { userId: user._id });
+            setLocalPost({ ...localPost, savedBy: res.data.user.savedPosts.map(p => p.toString()) });
+        } catch { }
+        setSaveLoading(false);
+    };
+
+    // Share logic (copy link)
+    const handleShare = () => {
+        const url = window.location.origin + '/post/' + localPost.src;
+        navigator.clipboard.writeText(url);
+        alert('Post link copied to clipboard!');
     };
 
     if (!localPost) return null;
@@ -74,11 +97,11 @@ export default function FullContentViewer({ post, onClose, onDelete, loading }) 
                     {/* Media */}
                     <Box sx={{ width: "100%", height: "100%", display: "flex", justifyContent: "center", alignItems: "center" }}>
                         {localPost.type === "image" && (
-                            <img src={localPost.src} alt={`Feed image`} style={{ objectFit: "contain", objectPosition: "center", maxWidth: "100%", maxHeight: "auto", aspectRatio: "1/1" }} />
+                            <img src={localPost.downloadUrl || `/uploads/${localPost.src}`} alt={`Feed image`} style={{ objectFit: "contain", objectPosition: "center", maxWidth: "100%", maxHeight: "auto", aspectRatio: "1/1" }} />
                         )}
                         {localPost.type === "video" && (
                             <video controls autoPlay muted loop playsInline preload="auto" style={{ objectFit: "contain", objectPosition: "center", maxWidth: "100%", maxHeight: "auto", aspectRatio: "1/1" }}>
-                                <source src={localPost.src} type="video/mp4" style={{}} />
+                                <source src={localPost.downloadUrl || `/uploads/${localPost.src}`} type="video/mp4" style={{}} />
                             </video>
                         )}
                     </Box>
@@ -90,11 +113,11 @@ export default function FullContentViewer({ post, onClose, onDelete, loading }) 
                             <Typography variant="body2" sx={{ fontSize: ".8rem" }}>{localPost.likes?.length || 0} likes</Typography>
                         </IconButton>
                         <Box>
-                            <IconButton size="small" sx={{ borderRadius: "3px", gap: 1 }}>
+                            <IconButton size="small" sx={{ borderRadius: "3px", gap: 1 }} onClick={handleShare}>
                                 <ShareOutlinedIcon />
                             </IconButton>
-                            <IconButton size="small" sx={{ borderRadius: "3px", gap: 1 }}>
-                                <BookmarksOutlinedIcon />
+                            <IconButton size="small" sx={{ borderRadius: "3px", gap: 1 }} onClick={handleSave} disabled={saveLoading || !user}>
+                                <BookmarksOutlinedIcon color={isSaved ? "primary" : undefined} />
                             </IconButton>
                         </Box>
                     </Box>
@@ -116,7 +139,7 @@ export default function FullContentViewer({ post, onClose, onDelete, loading }) 
                             localPost.comments.map((c) => (
                                 <Box key={c._id} sx={{ width: "100%" }}>
                                     <Typography variant="body1" sx={{ padding: 2, textAlign: "justify", fontSize: "0.8rem" }}>
-                                        <strong>{c.userId?.name || c.userId || "User"}</strong> : {c.comment}
+                                        <strong>{c.userId?.username || c.userId || "User"}</strong> : {c.comment}
                                         {user && (c.userId?._id === user._id || c.userId === user._id) && (
                                             <IconButton size="small" color="error" onClick={() => handleDeleteComment(c._id)} disabled={commentLoading}>
                                                 <DeleteIcon fontSize="small" />

@@ -62,6 +62,21 @@ module.exports = (app) => {
         }
     });
 
+    // fetch all global posts, newest first
+    app.get("/api/v1/posts/all", async (req, res) => {
+        try {
+            const posts = await Post.find({}).sort({ createdAt: -1 }).populate("userId", "username avatar");
+            // Attach download URL for each post
+            const postsWithDownload = posts.map(post => ({
+                ...post.toObject(),
+                downloadUrl: post.src ? `http://localhost:5001/download/${post.src}` : undefined
+            }));
+            res.status(200).json({ posts: postsWithDownload });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     // DELETE a post, its media, and all embedded comments (by src)
     app.delete("/api/v1/posts/by-src/:src", async (req, res) => {
         const src = req.params.src;
@@ -101,38 +116,6 @@ module.exports = (app) => {
         }
     });
 
-    // Add a comment to a post (by src)
-    app.post("/api/v1/posts/:src/comment", async (req, res) => {
-        const { userId, comment } = req.body;
-        if (!userId || !comment) return res.status(400).json({ error: "userId and comment required" });
-        try {
-            const post = await Post.findOneAndUpdate(
-                { src: req.params.src },
-                { $push: { comments: { userId, comment, createdAt: new Date() } } },
-                { new: true }
-            ).populate("comments.userId", "name");
-            if (!post) return res.status(404).json({ error: "Post not found" });
-            res.status(200).json({ post });
-        } catch (err) {
-            res.status(500).json({ error: err.message });
-        }
-    });
-
-    // Delete a comment from a post (by src and comment _id)
-    app.delete("/api/v1/posts/:src/comment/:commentId", async (req, res) => {
-        try {
-            const post = await Post.findOneAndUpdate(
-                { src: req.params.src },
-                { $pull: { comments: { _id: req.params.commentId } } },
-                { new: true }
-            );
-            if (!post) return res.status(404).json({ error: "Post not found" });
-            res.status(200).json({ post });
-        } catch (err) {
-            res.status(500).json({ error: err.message });
-        }
-    });
-
     // Like a post (by src)
     app.post("/api/v1/posts/:src/like", async (req, res) => {
         const { userId } = req.body;
@@ -142,7 +125,7 @@ module.exports = (app) => {
                 { src: req.params.src },
                 { $addToSet: { likes: userId } },
                 { new: true }
-            );
+            ).populate("likes", "username avatar").populate("comments.userId", "username avatar");
             if (!post) return res.status(404).json({ error: "Post not found" });
             res.status(200).json({ post });
         } catch (err) {
@@ -159,7 +142,39 @@ module.exports = (app) => {
                 { src: req.params.src },
                 { $pull: { likes: userId } },
                 { new: true }
-            );
+            ).populate("likes", "username avatar").populate("comments.userId", "username avatar");
+            if (!post) return res.status(404).json({ error: "Post not found" });
+            res.status(200).json({ post });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Add a comment to a post (by src)
+    app.post("/api/v1/posts/:src/comment", async (req, res) => {
+        const { userId, comment } = req.body;
+        if (!userId || !comment) return res.status(400).json({ error: "userId and comment required" });
+        try {
+            const post = await Post.findOneAndUpdate(
+                { src: req.params.src },
+                { $push: { comments: { userId, comment, createdAt: new Date() } } },
+                { new: true }
+            ).populate("comments.userId", "username avatar").populate("likes", "username avatar");
+            if (!post) return res.status(404).json({ error: "Post not found" });
+            res.status(200).json({ post });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Delete a comment from a post (by src and comment _id)
+    app.delete("/api/v1/posts/:src/comment/:commentId", async (req, res) => {
+        try {
+            const post = await Post.findOneAndUpdate(
+                { src: req.params.src },
+                { $pull: { comments: { _id: req.params.commentId } } },
+                { new: true }
+            ).populate("comments.userId", "username avatar").populate("likes", "username avatar");
             if (!post) return res.status(404).json({ error: "Post not found" });
             res.status(200).json({ post });
         } catch (err) {

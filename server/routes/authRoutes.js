@@ -7,14 +7,26 @@ const TwoFactorCode = mongoose.model("TwoFactorCodes");
 const generateTwoFactorCode = require("../middlewares/generateTwoFactorCode");
 const generateToken = require("../middlewares/generateToken");
 const rateLimiter = require("../middlewares/rateLimiter");
+const multer = require("multer");
+const path = require("path");
 
+// Set up multer for avatar uploads
+const avatarStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        cb(null, path.join(__dirname, "../../object/uploads/"));
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + "-avatar-" + file.originalname);
+    }
+});
+const avatarUpload = multer({ storage: avatarStorage }).single("avatar");
 
 //exporting the route as function 
 module.exports = (app) => {
     //route to handle user registration
     app.post("/api/v1/auth/register", async (req, res) => {
         //extract user details from request body
-        const { name, email, password } = req.body;
+        const { username, email, password } = req.body;
         try {
             //check if user already exists
             const existingUser = await User.findOne({ email });
@@ -22,7 +34,7 @@ module.exports = (app) => {
                 return res.status(400).json({ message: "User already exists" });
             }
             //create new user
-            const user = await User.create({ name, email, password });
+            const user = await User.create({ username, email, password });
             return res.status(201).json({ message: "User registered successfully", user });
         } catch (error) {
             return res.status(400).json({ message: error.message });
@@ -40,7 +52,7 @@ module.exports = (app) => {
                 return res.status(400).json({ message: "Invalid email or password" });
             } else {
                 //return success response with user details
-                const token = generateToken({ userId: user._id, email: user.email, name: user.name });
+                const token = generateToken({ userId: user._id, email: user.email, username: user.username });
                 return res.status(201).json({ message: "Login successful", user, token });
 
             }
@@ -51,7 +63,7 @@ module.exports = (app) => {
     //route to update user info
     app.post("/api/v1/auth/update", async (req, res) => {
         //extract user details from request body
-        const { name, email, phone, password } = req.body;
+        const { username, email, phone, password } = req.body;
         try {
             const user = await User.findOne({ email, password });
             //check user credentials
@@ -59,7 +71,7 @@ module.exports = (app) => {
                 return res.status(400).json({ message: "User not found" });
             } else {
                 //update user details
-                user.name = name;
+                user.username = username;
                 user.email = email;
                 user.password = password;
                 user.phone = phone;
@@ -116,8 +128,8 @@ module.exports = (app) => {
             }
             //if 2FA code is found, verify 2FA code
             if (twoFactorCode === twoFactorCodeFromDB.twoFactorCode) {
-                // const payload = { userId: user._id, email: user.email, name: user.name };
-                const token = generateToken({ userId: user._id, email: user.email, name: user.name });
+                // const payload = { userId: user._id, email: user.email, username: user.username };
+                const token = generateToken({ userId: user._id, email: user.email, username: user.username });
                 // const refreshToken = jwt.sign(payload, process.env.JWT_REFRESH_SECRET, { expiresIn: process.env.JWT_REFRESH_EXPIRATION_TIME });
                 return res.status(200).json({ message: "2FA code verified", token });
             } else {
@@ -143,6 +155,142 @@ module.exports = (app) => {
             res.status(200).json({ user });
         } catch (err) {
             res.status(401).json({ message: "Invalid token" });
+        }
+    });
+    // Follow a user
+    app.post("/api/v1/users/:id/follow", async (req, res) => {
+        const userId = req.body.userId; // the follower
+        const targetId = req.params.id; // the user to be followed
+        if (!userId || !targetId) return res.status(400).json({ error: "userId and targetId required" });
+        if (userId === targetId) return res.status(400).json({ error: "Cannot follow yourself" });
+        const User = mongoose.model("Users");
+        try {
+            await User.findByIdAndUpdate(userId, { $addToSet: { following: targetId } });
+            await User.findByIdAndUpdate(targetId, { $addToSet: { followers: userId } });
+            res.status(200).json({ message: "Followed" });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Unfollow a user
+    app.post("/api/v1/users/:id/unfollow", async (req, res) => {
+        const userId = req.body.userId; // the follower
+        const targetId = req.params.id; // the user to be unfollowed
+        if (!userId || !targetId) return res.status(400).json({ error: "userId and targetId required" });
+        if (userId === targetId) return res.status(400).json({ error: "Cannot unfollow yourself" });
+        const User = mongoose.model("Users");
+        try {
+            await User.findByIdAndUpdate(userId, { $pull: { following: targetId } });
+            await User.findByIdAndUpdate(targetId, { $pull: { followers: userId } });
+            res.status(200).json({ message: "Unfollowed" });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Get followers
+    app.get("/api/v1/users/:id/followers", async (req, res) => {
+        const User = mongoose.model("Users");
+        try {
+            const user = await User.findById(req.params.id).populate("followers", "username email");
+            res.status(200).json({ followers: user.followers });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Get following
+    app.get("/api/v1/users/:id/following", async (req, res) => {
+        const User = mongoose.model("Users");
+        try {
+            const user = await User.findById(req.params.id).populate("following", "username email");
+            res.status(200).json({ following: user.following });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+    // User search endpoint (by name only)
+    app.get("/api/v1/users/search", async (req, res) => {
+        const q = req.query.q || "";
+        const User = mongoose.model("Users");
+        try {
+            const users = await User.find({
+                username: { $regex: q, $options: "i" }
+            }, "_id username email");
+            res.status(200).json({ users });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Avatar upload endpoint
+    app.post("/api/v1/users/:id/avatar", (req, res) => {
+        avatarUpload(req, res, async function (err) {
+            if (err) return res.status(400).json({ error: err.message });
+            if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+            const User = mongoose.model("Users");
+            try {
+                const user = await User.findByIdAndUpdate(
+                    req.params.id,
+                    { avatar: req.file.filename },
+                    { new: true }
+                );
+                res.status(200).json({ message: "Avatar uploaded", avatar: req.file.filename, user });
+            } catch (e) {
+                res.status(500).json({ error: e.message });
+            }
+        });
+    });
+    // Save a post (bookmark)
+    app.post("/api/v1/posts/:src/save", async (req, res) => {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ error: "userId required" });
+        try {
+            const Post = mongoose.model("Posts");
+            const post = await Post.findOne({ src: req.params.src });
+            if (!post) return res.status(404).json({ error: "Post not found" });
+            const user = await User.findByIdAndUpdate(
+                userId,
+                { $addToSet: { savedPosts: post._id } },
+                { new: true }
+            ).populate("savedPosts");
+            res.status(200).json({ message: "Post saved", user });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Unsave a post (remove bookmark)
+    app.post("/api/v1/posts/:src/unsave", async (req, res) => {
+        const { userId } = req.body;
+        if (!userId) return res.status(400).json({ error: "userId required" });
+        try {
+            const Post = mongoose.model("Posts");
+            const post = await Post.findOne({ src: req.params.src });
+            if (!post) return res.status(404).json({ error: "Post not found" });
+            const user = await User.findByIdAndUpdate(
+                userId,
+                { $pull: { savedPosts: post._id } },
+                { new: true }
+            ).populate("savedPosts");
+            res.status(200).json({ message: "Post unsaved", user });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    // Get all saved posts for a user
+    app.get("/api/v1/users/:id/saved-posts", async (req, res) => {
+        try {
+            const user = await User.findById(req.params.id).populate({
+                path: "savedPosts",
+                populate: { path: "userId", select: "username avatar" }
+            });
+            if (!user) return res.status(404).json({ error: "User not found" });
+            res.status(200).json({ savedPosts: user.savedPosts });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
         }
     });
 };

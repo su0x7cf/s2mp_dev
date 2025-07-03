@@ -25,6 +25,8 @@ const feedContentViewer = ({ post }) => {
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [showComments, setShowComments] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const isSaved = user && localPost.savedBy && localPost.savedBy.includes(user._id);
 
   useEffect(() => {
     // Add null check before accessing ref.current very very important because it will throw error if not checked since ref is null initially
@@ -42,6 +44,11 @@ const feedContentViewer = ({ post }) => {
     }
   }
 
+  // Sync localPost with prop changes
+  useEffect(() => {
+    setLocalPost(post);
+  }, [post]);
+
   // Like/unlike logic
   const isLiked = user && localPost.likes && localPost.likes.includes(user._id);
   const handleLike = async () => {
@@ -49,7 +56,7 @@ const feedContentViewer = ({ post }) => {
     setLikeLoading(true);
     try {
       const res = await axios.post(`/api/v1/posts/${localPost.src}/${isLiked ? "unlike" : "like"}`, { userId: user._id });
-      setLocalPost(res.data.post);
+      setLocalPost(res.data.post); // Use full post object from backend
     } catch { }
     setLikeLoading(false);
   };
@@ -60,7 +67,7 @@ const feedContentViewer = ({ post }) => {
     setCommentLoading(true);
     try {
       const res = await axios.post(`/api/v1/posts/${localPost.src}/comment`, { userId: user._id, comment: commentText });
-      setLocalPost(res.data.post);
+      setLocalPost(res.data.post); // Use full post object from backend
       setCommentText("");
     } catch { }
     setCommentLoading(false);
@@ -72,9 +79,31 @@ const feedContentViewer = ({ post }) => {
     setCommentLoading(true);
     try {
       const res = await axios.delete(`/api/v1/posts/${localPost.src}/comment/${commentId}`);
-      setLocalPost(res.data.post);
+      setLocalPost(res.data.post); // Use full post object from backend
     } catch { }
     setCommentLoading(false);
+  };
+
+  // Save/unsave logic
+  const handleSave = async () => {
+    if (!user) return;
+    setSaveLoading(true);
+    try {
+      const endpoint = localPost.savedBy && localPost.savedBy.includes(user._id)
+        ? `/api/v1/posts/${localPost.src}/unsave`
+        : `/api/v1/posts/${localPost.src}/save`;
+      const res = await axios.post(endpoint, { userId: user._id });
+      // Optionally update localPost.savedBy if you fetch it in post object
+      setLocalPost({ ...localPost, savedBy: res.data.user.savedPosts.map(p => p.toString()) });
+    } catch { }
+    setSaveLoading(false);
+  };
+
+  // Share logic (copy link)
+  const handleShare = () => {
+    const url = window.location.origin + '/post/' + localPost.src;
+    navigator.clipboard.writeText(url);
+    alert('Post link copied to clipboard!');
   };
 
   return (
@@ -180,11 +209,11 @@ const feedContentViewer = ({ post }) => {
           </IconButton>
         </Box>
         <Box>
-          <IconButton size="small" sx={{ borderRadius: "3px", gap: 1 }}>
+          <IconButton size="small" sx={{ borderRadius: "3px", gap: 1 }} onClick={handleShare}>
             <ShareOutlinedIcon />
           </IconButton>
-          <IconButton size="small" sx={{ borderRadius: "3px", gap: 1 }}>
-            <BookmarksOutlinedIcon />
+          <IconButton size="small" sx={{ borderRadius: "3px", gap: 1 }} onClick={handleSave} disabled={saveLoading || !user}>
+            <BookmarksOutlinedIcon color={isSaved ? "primary" : undefined} />
           </IconButton>
         </Box>
       </Box>
@@ -195,7 +224,7 @@ const feedContentViewer = ({ post }) => {
             localPost.comments.map((c) => (
               <Box key={c._id} sx={{ width: "100%" }}>
                 <Typography variant="body2" sx={{ padding: 1 }}>
-                  <strong>{c.userId?.name || c.userId || "User"}</strong>: {c.comment}
+                  <strong>{c.userId?.username || c.userId || "User"}</strong>: {c.comment}
                   {user && (c.userId?._id === user._id || c.userId === user._id) && (
                     <IconButton size="small" color="error" onClick={() => handleDeleteComment(c._id)} disabled={commentLoading}>
                       <DeleteIcon fontSize="small" />
